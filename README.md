@@ -33,7 +33,7 @@
 
     amd = AlexaModelBuilder.new(s)
 
-    ask = AlexaSkillSimulator.new amd.to_manifest, amd.to_model, debug: true
+    ask = AlexaShell.new amd.to_manifest, amd.to_model, debug: true
     ask.start
 
 The above example simulates interacting with an Alexa Skill using the Alexa_skillsimulator gem. It uses the supplied manifest and interaction model to respond to user requests, including posting and fetching the response from the endpoint (e.g. local web server).
