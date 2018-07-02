@@ -4,16 +4,84 @@
 
 require 'time'
 require 'rest-client'
+require 'console_cmdr'
 require 'securerandom'
+
+
+class AlexaShell < ConsoleCmdr
+
+  def initialize(manifest, model, debug: false)
+    @alexa = AlexaSkillSimulator.new(manifest, model, debug: debug)
+    super(debug: debug)
+  end
+  
+  def start()   
+    super()
+  end
+  
+  def display_output(s='')
+    
+    print s + "\n\n => Alexa is ready\n\n> "
+    
+  end
+
+  protected
+  
+  def clear_cli()
+  end
+  
+  def cli_banner()
+    puts
+    puts 'Starting ... (to exit press CTRL-C)'     
+    puts
+    puts 'Alexa is ready'
+    puts
+    print '> '      
+  end
+
+  def on_enter(raw_command)
+    
+    command = raw_command.downcase
+    
+    puts 'on_enter: ' + command.inspect if @debug
+    
+    if command =~ /^what can i say/ then
+      return "you can say the following: \n\n" \
+          + "open #{@alexa.invocation}\n" + @alexa.utterances.keys.join("\n")
+    end
+    
+    return (@running=false; '' ) if command.downcase =~ /^bye|quit|stop|exit$/
+    
+    return false unless command =~ /^open|tell|ask$/
+    
+    response = @alexa.ask command.downcase
+    "Alexa says: " + response
+
+    
+  end
+
+  def on_keypress(key)    
+    @running = false if key == :ctrl_c
+    super(key)
+  end
+
+end
 
 
 class AlexaSkillSimulator
 
+  attr_reader :invocation, :utterances
 
   def initialize(manifest, model, debug: false)
 
     @debug = debug
 
+    @locale = manifest['manifest']['publishingInformation']['locales']\
+        .keys.first
+    puts '@locale: ' + @locale.inspect if @debug
+    
+    @invocation = model['interactionModel']['languageModel']['invocationName']
+    
     # get the utterances
  
     @utterances = model['interactionModel']['languageModel']\
@@ -30,40 +98,62 @@ class AlexaSkillSimulator
     puts '  debugger: @endpoint: ' + @endpoint.inspect if @debug
     
   end
-
-  def start()
-
+  
+  def ask(s)
+    
     puts
-    puts 'Starting ... (to exit press CTRL-C)'
+    puts '  debugger: s: ' + s.inspect if @debug
+    
+    invocation = @invocation.gsub(/ /,'\s')
+    
+    regex = %r{
 
-    while true do
+      (?<ask>(?<action>tell|ask)\s#{invocation}\s(?<request>.*)){0}
+      (?<open>(?<action>open)\s#{invocation}){0}
+      \g<ask>|\g<open>
+    }x
+        
+    r2 = s.match(regex)
+    
+    puts '  debugger: r2: ' + r2.inspect if @debug
+    puts      
+                
+    response = if r2 then
+    
+      case r2[:action]
+      
+      when 'open'
 
-      puts
-      puts 'Alexa is ready'
-      puts
-      print '> '
-      s = gets.downcase.chomp
-      puts
-      puts '  debugger: s: ' + s.inspect if @debug
-
-      r = @utterances[s]
-      puts '  debugger: r: ' + r.inspect if @debug
-      puts
-
-      if r then
-
-        puts '  debugger: your intent is to ' + r if @debug
-
-        response = respond()
-        puts "Alexa says: " + response
+          respond()
         
       else
-        puts "Alexa says: I'm sorry I didn't understand what you said"
+        
+        r = @utterances[r2[:request]]
+        puts '  debugger: r: ' + r.inspect if @debug
+        puts
+
+        if r then
+
+          puts '  debugger: your intent is to ' + r if @debug
+
+          respond(r)      
+          
+        else
+          "I'm sorry I didn't understand what you said"
+        end        
+        
       end
-
+              
+    else
+      
+      "hmmm, I don't know that one."
+      
     end
-
+    
+   response
+        
   end
+
 
   private
 
@@ -101,16 +191,30 @@ class AlexaSkillSimulator
          "apiEndpoint"=>"https://api.eu.amazonalexa.com",
          "apiAccessToken"=>
           "A"}},
-     "request"=>
-      {"type"=>"LaunchRequest",
-       "requestId"=>"amzn1.echo-api.request.a",
-       "timestamp"=> Time.now.utc.iso8601,
-       "locale"=>"en-US",
-       "shouldLinkResultBeReturned"=>false}}
-
+     "request"=> {}
+    }
+    
+    h['request'] = if intent then
+    {
+      "type"=>"IntentRequest",
+      "requestId"=>"amzn1.echo-api.request.0",
+      "timestamp"=>Time.now.utc.iso8601,
+      "locale"=>@locale,
+      "intent"=>{"name"=>intent, "confirmationStatus"=>"NONE"},
+      "dialogState"=>"STARTED"
+    }
+    else
+      {
+        "type"=>"LaunchRequest",
+        "requestId"=>"amzn1.echo-api.request.a",
+        "timestamp"=> Time.now.utc.iso8601,
+        "locale"=>@locale,
+        "shouldLinkResultBeReturned"=>false
+      }      
+    end
+    
     r = post @endpoint, h
     puts '  degbugger: r: ' + r.inspect if @debug
-    puts
 
     r[:response][:outputSpeech][:text]
   end
