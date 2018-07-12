@@ -11,8 +11,10 @@ require 'securerandom'
 class AlexaShell < ConsoleCmdr
 
   def initialize(manifest, model, debug: false)
+    
     @alexa = AlexaSkillSimulator.new(manifest, model, debug: debug)
     super(debug: debug)
+    
   end
   
   def start()   
@@ -45,18 +47,22 @@ class AlexaShell < ConsoleCmdr
     
     puts 'on_enter: ' + command.inspect if @debug
     
-    if command =~ /^what can i say/ then
+    case command
+
+    when /^open|tell|ask$/
+      response = @alexa.ask command
+      "Alexa says: " + response
+      
+    when /^what can i say/
       return "you can say the following: \n\n" \
           + "open #{@alexa.invocation}\n" + @alexa.utterances.keys.join("\n")
+    
+    when /^bye|quit|stop|exit$/
+      return (@running=false; '' )
+    
+    else
+      return false
     end
-    
-    return (@running=false; '' ) if command.downcase =~ /^bye|quit|stop|exit$/
-    
-    return false unless command =~ /^open|tell|ask$/
-    
-    response = @alexa.ask command.downcase
-    "Alexa says: " + response
-
     
   end
 
@@ -82,17 +88,14 @@ class AlexaSkillSimulator
     
     @invocation = model['interactionModel']['languageModel']['invocationName']
     
-    # get the utterances
- 
     @utterances = model['interactionModel']['languageModel']\
                                         ['intents'].inject({}) do |r, intent|
-      intent['samples'].each {|x| r[x] = intent['name']}
+      intent['samples'].each {|x| r[x.downcase] = intent['name']}
       r
     end
 
     puts '  debugger::@utterances: ' + @utterances.inspect if @debug
 
-    # get the endpoint
     @endpoint = manifest['manifest']['apis']['custom']['endpoint']['uri']
 
     puts '  debugger: @endpoint: ' + @endpoint.inspect if @debug
@@ -113,45 +116,28 @@ class AlexaSkillSimulator
       \g<ask>|\g<open>
     }x
         
-    r2 = s.match(regex)
+    r2 = s.downcase.match(regex)
     
     puts '  debugger: r2: ' + r2.inspect if @debug
     puts      
-                
-    response = if r2 then
-    
-      case r2[:action]
       
-      when 'open'
+    return "hmmm, I don't know that one." unless r2        
+    return respond() if r2[:action] == 'open'
+            
+    r = @utterances[r2[:request]]
+    puts '  debugger: r: ' + r.inspect if @debug
+    puts
 
-          respond()
-        
-      else
-        
-        r = @utterances[r2[:request]]
-        puts '  debugger: r: ' + r.inspect if @debug
-        puts
+    if r then
 
-        if r then
+      puts '  debugger: your intent is to ' + r if @debug
 
-          puts '  debugger: your intent is to ' + r if @debug
-
-          respond(r)      
-          
-        else
-          "I'm sorry I didn't understand what you said"
-        end        
-        
-      end
-              
+      respond(r)      
+      
     else
-      
-      "hmmm, I don't know that one."
-      
-    end
-    
-   response
-        
+      "I'm sorry I didn't understand what you said"
+    end        
+            
   end
 
 
@@ -195,14 +181,14 @@ class AlexaSkillSimulator
     }
     
     h['request'] = if intent then
-    {
-      "type"=>"IntentRequest",
-      "requestId"=>"amzn1.echo-api.request.0",
-      "timestamp"=>Time.now.utc.iso8601,
-      "locale"=>@locale,
-      "intent"=>{"name"=>intent, "confirmationStatus"=>"NONE"},
-      "dialogState"=>"STARTED"
-    }
+      {
+        "type"=>"IntentRequest",
+        "requestId"=>"amzn1.echo-api.request.0",
+        "timestamp"=>Time.now.utc.iso8601,
+        "locale"=>@locale,
+        "intent"=>{"name"=>intent, "confirmationStatus"=>"NONE"},
+        "dialogState"=>"STARTED"
+      }
     else
       {
         "type"=>"LaunchRequest",
