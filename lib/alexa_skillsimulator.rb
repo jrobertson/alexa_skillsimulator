@@ -10,9 +10,10 @@ require 'securerandom'
 
 class AlexaShell < ConsoleCmdr
 
-  def initialize(manifest, model, debug: false)
+  def initialize(manifest, model, debug: false, userid: nil, deviceid: nil)
     
-    @alexa = AlexaSkillSimulator.new(manifest, model, debug: debug)
+    @alexa = AlexaSkillSimulator.new(manifest, model, debug: debug, 
+                                     userid: userid, deviceid: deviceid)
     super(debug: debug)
     
   end
@@ -78,9 +79,9 @@ class AlexaSkillSimulator
 
   attr_reader :invocation, :utterances
 
-  def initialize(manifest, model, debug: false)
+  def initialize(manifest, model, debug: false, userid: nil, deviceid: nil)
 
-    @debug = debug
+    @debug, @userid, @deviceid = debug, userid, deviceid
 
     @locale = manifest['manifest']['publishingInformation']['locales']\
         .keys.first
@@ -179,6 +180,12 @@ class AlexaSkillSimulator
           "A"}},
      "request"=> {}
     }
+    
+    h['session']['user']['userId'] = @userid if @userid
+    h['context']['System']['user']['userId'] = @userid if @userid
+    
+    h['context']['System']['device']['deviceId'] = @deviceid if @deviceid
+    
     
     h['request'] = if intent then
       {
