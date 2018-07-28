@@ -117,7 +117,7 @@ class AlexaSkillSimulator
       \g<ask>|\g<open>
     }x
         
-    r2 = s.downcase.match(regex)
+    r2 = s.downcase.gsub(/,/,'').match(regex)
     
     puts '  debugger: r2: ' + r2.inspect if @debug
     puts      
