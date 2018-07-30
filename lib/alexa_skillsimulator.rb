@@ -2,8 +2,7 @@
 
 # file: alexa_skillsimulator.rb
 
-require 'time'
-require 'rest-client'
+require 'askio'
 require 'console_cmdr'
 require 'securerandom'
 
@@ -77,29 +76,12 @@ end
 
 class AlexaSkillSimulator
 
-  attr_reader :invocation, :utterances
+  attr_reader :invocation
 
   def initialize(manifest, model, debug: false, userid: nil, deviceid: nil)
 
+    @manifest, @model = manifest, model
     @debug, @userid, @deviceid = debug, userid, deviceid
-
-    @locale = manifest['manifest']['publishingInformation']['locales']\
-        .keys.first
-    puts '@locale: ' + @locale.inspect if @debug
-    
-    @invocation = model['interactionModel']['languageModel']['invocationName']
-    
-    @utterances = model['interactionModel']['languageModel']\
-                                        ['intents'].inject({}) do |r, intent|
-      intent['samples'].each {|x| r[x.downcase] = intent['name']}
-      r
-    end
-
-    puts '  debugger::@utterances: ' + @utterances.inspect if @debug
-
-    @endpoint = manifest['manifest']['apis']['custom']['endpoint']['uri']
-
-    puts '  debugger: @endpoint: ' + @endpoint.inspect if @debug
     
   end
   
@@ -107,8 +89,11 @@ class AlexaSkillSimulator
     
     puts
     puts '  debugger: s: ' + s.inspect if @debug
+
+    aio = AskIO.new(@manifest, @model, debug: @debug, userid: @userid, 
+                    deviceid: @deviceid)
     
-    invocation = @invocation.gsub(/ /,'\s')
+    invocation = aio.invocation.gsub(/ /,'\s')
     
     regex = %r{
 
@@ -124,92 +109,12 @@ class AlexaSkillSimulator
       
     return "hmmm, I don't know that one." unless r2        
     return respond() if r2[:action] == 'open'
-            
-    r = @utterances[r2[:request]]
-    puts '  debugger: r: ' + r.inspect if @debug
-    puts
-
-    if r then
-
-      puts '  debugger: your intent is to ' + r if @debug
-
-      respond(r)      
-      
-    else
-      "I'm sorry I didn't understand what you said"
-    end        
-            
-  end
-
-
-  private
-
-  def post(url, h)
-
-    r = RestClient.post(url, h.to_json, 
-                       headers={content_type: :json, accept: :json})
-    JSON.parse r.body, symbolize_names: true
+        
+    r = aio.ask r2[:request]
+    
+    r ? r : "I'm sorry I didn't understand what you said"
 
   end
 
-  def respond(intent=nil)
-
-    h = {"version"=>"1.0",
-     "session"=>
-      {"new"=>true,
-       "sessionId"=>"amzn1.echo-api.session.1",
-       "application"=>
-        {"applicationId"=>"amzn1.ask.skill.0"},
-       "user"=>
-        {"userId"=>
-          "amzn1.ask.account.I"}},
-     "context"=>
-      {"System"=>
-        {"application"=>
-          {"applicationId"=>
-            "amzn1.ask.skill.0"},
-         "user"=>
-          {"userId"=>
-            "amzn1.ask.account.I"},
-         "device"=>
-          {"deviceId"=>
-            "amzn1.ask.device.A",
-           "supportedInterfaces"=>{}},
-         "apiEndpoint"=>"https://api.eu.amazonalexa.com",
-         "apiAccessToken"=>
-          "A"}},
-     "request"=> {}
-    }
-    
-    h['session']['user']['userId'] = @userid if @userid
-    h['context']['System']['user']['userId'] = @userid if @userid
-    
-    h['context']['System']['device']['deviceId'] = @deviceid if @deviceid
-    
-    
-    h['request'] = if intent then
-      {
-        "type"=>"IntentRequest",
-        "requestId"=>"amzn1.echo-api.request.0",
-        "timestamp"=>Time.now.utc.iso8601,
-        "locale"=>@locale,
-        "intent"=>{"name"=>intent, "confirmationStatus"=>"NONE"},
-        "dialogState"=>"STARTED"
-      }
-    else
-      {
-        "type"=>"LaunchRequest",
-        "requestId"=>"amzn1.echo-api.request.a",
-        "timestamp"=> Time.now.utc.iso8601,
-        "locale"=>@locale,
-        "shouldLinkResultBeReturned"=>false
-      }      
-    end
-    
-    r = post @endpoint, h
-    puts '  degbugger: r: ' + r.inspect if @debug
-
-    r[:response][:outputSpeech][:text]
-  end
 
 end
