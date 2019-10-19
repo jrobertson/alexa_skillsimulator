@@ -85,7 +85,7 @@ class AlexaSkillSimulator
     
   end
   
-  def ask(s)
+  def ask(s, &blk)
     
     puts
     puts '  debugger: s: ' + s.inspect if @debug
@@ -110,7 +110,7 @@ class AlexaSkillSimulator
     return "hmmm, I don't know that one." unless r2        
     return respond() if r2[:action] == 'open'
         
-    r = aio.ask r2[:request]
+    r = aio.ask r2[:request], &blk
     
     r ? r : "I'm sorry I didn't understand what you said"
 
