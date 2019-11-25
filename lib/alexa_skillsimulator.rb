@@ -77,6 +77,7 @@ end
 class AlexaSkillSimulator
 
   attr_reader :invocation
+  attr_accessor :deviceid
 
   def initialize(manifest, model, debug: false, userid: nil, deviceid: nil)
 
@@ -85,13 +86,13 @@ class AlexaSkillSimulator
     
   end
   
-  def ask(s, &blk)
+  def ask(s, deviceid: @deviceid, &blk)
     
     puts
     puts '  debugger: s: ' + s.inspect if @debug
 
     aio = AskIO.new(@manifest, @model, debug: @debug, userid: @userid, 
-                    deviceid: @deviceid)
+                    deviceid: deviceid)
     
     invocation = aio.invocation.gsub(/ /,'\s')
     

@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name = 'alexa_skillsimulator'
-  s.version = '0.3.1'
+  s.version = '0.3.2'
   s.summary = 'A local simulator for your Alexa Skill.'
   s.authors = ['James Robertson']
   s.files = Dir['lib/alexa_skillsimulator.rb']
