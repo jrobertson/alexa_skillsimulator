@@ -2,16 +2,16 @@
 
 # file: alexa_skillsimulator.rb
 
-require 'askio'
 require 'console_cmdr'
 require 'securerandom'
+require 'alexa_utteranceresponder'
 
 
 class AlexaShell < ConsoleCmdr
 
-  def initialize(manifest, model, debug: false, userid: nil, deviceid: nil)
+  def initialize(modelstxt=[], debug: false, userid: nil, deviceid: nil)
     
-    @alexa = AlexaSkillSimulator.new(manifest, model, debug: debug, 
+    @alexa = AlexaSkillSimulator.new(modelstxt, debug: debug, 
                                      userid: userid, deviceid: deviceid)
     super(debug: debug)
     
@@ -61,7 +61,7 @@ class AlexaShell < ConsoleCmdr
       return (@running=false; '' )
     
     else
-      return false
+      return @alexa.ask command
     end
     
   end
@@ -79,10 +79,10 @@ class AlexaSkillSimulator
   attr_reader :invocation
   attr_accessor :deviceid
 
-  def initialize(manifest, model, debug: false, userid: nil, deviceid: nil)
+  def initialize(modelstxt=[], debug: false, userid: nil, deviceid: nil)
 
-    @manifest, @model = manifest, model
-    @debug, @userid, @deviceid = debug, userid, deviceid
+    @debug, @deviceid = debug, deviceid
+    @aur = AlexaUtteranceResponder.new(modelstxt, userid: userid, deviceid: deviceid, debug: true)
     
   end
   
@@ -91,31 +91,8 @@ class AlexaSkillSimulator
     puts
     puts '  debugger: s: ' + s.inspect if @debug
 
-    aio = AskIO.new(@manifest, @model, debug: @debug, userid: @userid, 
-                    deviceid: deviceid)
-    
-    invocation = aio.invocation.gsub(/ /,'\s')
-    
-    regex = %r{
-
-      (?<ask>(?<action>tell|ask)\s#{invocation}\s(?<request>.*)){0}
-      (?<open>(?<action>open)\s#{invocation}){0}
-      \g<ask>|\g<open>
-    }x
-        
-    r2 = s.downcase.gsub(/,/,'').match(regex)
-    
-    puts '  debugger: r2: ' + r2.inspect if @debug
-    puts      
-      
-    return "hmmm, I don't know that one." unless r2        
-    return respond() if r2[:action] == 'open'
-        
-    r = aio.ask r2[:request], &blk
-    
-    r ? r : "I'm sorry I didn't understand what you said"
+    @aur.ask(s)
 
   end
-
 
 end
